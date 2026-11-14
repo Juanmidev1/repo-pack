@@ -40,6 +40,10 @@ pub struct Args {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
+    /// Copy the result to the system clipboard instead of printing it
+    #[arg(short, long)]
+    pub copy: bool,
+
     /// Abort without writing anything if the package exceeds this many tokens
     #[arg(long)]
     pub max_tokens: Option<usize>,

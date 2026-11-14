@@ -1,8 +1,10 @@
 # repo-pack
 
+![repo-pack demo](docs/demo.gif)
+
 A Rust CLI that packs a local repository into a single text block designed for an LLM context window.
 
-> Status: in development. Clipboard support is coming in the next PR.
+Offline, fast (a few milliseconds on a typical repo) and shipped as a single binary under 3 MB.
 
 ## Installation
 
@@ -10,17 +12,22 @@ A Rust CLI that packs a local repository into a single text block designed for a
 cargo install --path .
 ```
 
+Prebuilt binaries for Linux, macOS and Windows are attached to each GitHub release.
+
 ## Usage
 
 ```bash
-# Pack the current repository
-repo-pack .
+# Pack the current repository as XML and copy it to the clipboard
+repo-pack . --copy
 
 # Only Rust and TOML, skip tests, ignore files larger than 100 KB
 repo-pack ./my-project -e rs,toml --exclude "tests/*" --max-size 100KB -o context.xml
 
-# Markdown output piped into the clipboard, refusing anything above 100k tokens
-repo-pack . --format md --max-tokens 100000 | wl-copy
+# Markdown output, refusing anything above 100k tokens
+repo-pack . --format md --max-tokens 100000 -c
+
+# Plain stdout, ready to pipe into other commands
+repo-pack . | wl-copy
 
 # Dry run: show the tree and token statistics only
 repo-pack . --stats
@@ -82,5 +89,20 @@ fn main() {}
 | `--include-lockfiles` | Include lockfiles |
 | `--format <xml\|md>` | Output format (default `xml`) |
 | `-o, --output <file>` | Write to a file instead of `stdout` (that file is never packed itself) |
+| `-c, --copy` | Copy the result to the system clipboard instead of printing it |
 | `--max-tokens <n>` | Abort without writing anything above this token count |
 | `--stats` | Dry run: print the tree and statistics only |
+
+## Clipboard on Linux
+
+On X11 and Wayland the copied text belongs to the process that set it and is lost when that process exits. `repo-pack --copy` therefore leaves a small background copy of itself serving the clipboard. It exits on its own as soon as another application copies something new.
+
+## Development
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+The CI workflow runs these checks on every pull request. Pushing a `v*` tag builds the release binaries.
