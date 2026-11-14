@@ -11,3 +11,9 @@ ignore = "0.4.34"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+# Keep the release binary small (under 3 MB)
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
