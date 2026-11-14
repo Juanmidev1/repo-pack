@@ -39,6 +39,14 @@ pub struct Args {
     /// Write the result to this file instead of stdout
     #[arg(short, long)]
     pub output: Option<PathBuf>,
+
+    /// Abort without writing anything if the package exceeds this many tokens
+    #[arg(long)]
+    pub max_tokens: Option<usize>,
+
+    /// Dry run: print the tree and token statistics without producing output
+    #[arg(long)]
+    pub stats: bool,
 }
 
 pub fn parse_size(input: &str) -> Result<u64, String> {

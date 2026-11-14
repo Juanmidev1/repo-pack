@@ -5,6 +5,7 @@ use ignore::WalkBuilder;
 use ignore::overrides::{Override, OverrideBuilder};
 
 use crate::cli::Args;
+use crate::tokens::estimate_tokens;
 
 const ALWAYS_EXCLUDED: &[&str] = &[".git/", "node_modules/", "target/"];
 const LOCKFILES: &[&str] = &[
@@ -23,11 +24,12 @@ const BINARY_SNIFF_BYTES: usize = 8000;
 pub struct SourceFile {
     pub path: String,
     pub content: String,
+    pub tokens: usize,
 }
 
 pub fn scan(args: &Args) -> Result<Vec<SourceFile>, ignore::Error> {
     let walker = WalkBuilder::new(&args.path)
-        .overrides(build_overrides(&args.path, &args.exclude)?)
+        .overrides(build_overrides(args)?)
         // Respect .gitignore even when the folder is not a git repository
         .require_git(false)
         .sort_by_file_path(|left, right| left.cmp(right))
@@ -51,13 +53,33 @@ pub fn scan(args: &Args) -> Result<Vec<SourceFile>, ignore::Error> {
     Ok(files)
 }
 
-fn build_overrides(root: &Path, user_excludes: &[String]) -> Result<Override, ignore::Error> {
-    let mut builder = OverrideBuilder::new(root);
-    let user_patterns = user_excludes.iter().map(String::as_str);
-    for pattern in ALWAYS_EXCLUDED.iter().copied().chain(user_patterns) {
+fn build_overrides(args: &Args) -> Result<Override, ignore::Error> {
+    let mut builder = OverrideBuilder::new(&args.path);
+    let user_patterns = args.exclude.iter().cloned();
+    let output_pattern = output_exclusion(&args.path, args.output.as_deref());
+    let patterns = ALWAYS_EXCLUDED
+        .iter()
+        .map(|pattern| pattern.to_string())
+        .chain(user_patterns)
+        .chain(output_pattern);
+    for pattern in patterns {
         builder.add(&format!("!{pattern}"))?;
     }
     builder.build()
+}
+
+// A previous `-o context.xml` inside the repo would otherwise be packed into the next run
+fn output_exclusion(root: &Path, output: Option<&Path>) -> Option<String> {
+    let output = output?;
+    let parent = match output.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    let absolute_output = parent.canonicalize().ok()?.join(output.file_name()?);
+    let relative_output = absolute_output
+        .strip_prefix(root.canonicalize().ok()?)
+        .ok()?;
+    Some(format!("/{}", relative_output.to_string_lossy()))
 }
 
 fn passes_filters(path: &Path, args: &Args) -> bool {
@@ -104,92 +126,10 @@ fn read_text_file(root: &Path, path: &Path) -> Option<SourceFile> {
     let relative_path = path.strip_prefix(root).unwrap_or(path);
     Some(SourceFile {
         path: relative_path.to_string_lossy().replace('\\', "/"),
+        tokens: estimate_tokens(&content),
         content,
     })
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::path::Path;
-
-    use clap::Parser;
-    use tempfile::TempDir;
-
-    use super::scan;
-    use crate::cli::Args;
-
-    fn create_fixture() -> TempDir {
-        let root = tempfile::tempdir().unwrap();
-        let files: &[(&str, &[u8])] = &[
-            (".gitignore", b"ignored.txt\n"),
-            ("ignored.txt", b"secret"),
-            ("src/main.rs", b"fn main() {}"),
-            ("src/lib.rs", b"pub fn lib() {}"),
-            ("tests/integration.rs", b"#[test] fn it() {}"),
-            ("README.md", b"# Fixture"),
-            ("Cargo.lock", b"lock"),
-            ("image.png", b"\x89PNG\x00\x00binary"),
-            ("node_modules/pkg/index.js", b"module.exports = 1"),
-            ("big.txt", &[b'a'; 2048]),
-        ];
-        for (relative_path, content) in files {
-            let path = root.path().join(relative_path);
-            fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(path, content).unwrap();
-        }
-        root
-    }
-
-    fn default_args(root: &Path) -> Args {
-        Args::parse_from(["repo-pack".as_ref(), root.as_os_str()])
-    }
-
-    fn scanned_paths(args: &Args) -> Vec<String> {
-        scan(args)
-            .unwrap()
-            .into_iter()
-            .map(|file| file.path)
-            .collect()
-    }
-
-    #[test]
-    fn applies_default_exclusions() {
-        let root = create_fixture();
-        let paths = scanned_paths(&default_args(root.path()));
-        assert_eq!(
-            paths,
-            [
-                "README.md",
-                "big.txt",
-                "src/lib.rs",
-                "src/main.rs",
-                "tests/integration.rs"
-            ]
-        );
-    }
-
-    #[test]
-    fn filters_by_extension_and_exclude_glob() {
-        let root = create_fixture();
-        let args = Args {
-            extensions: vec!["rs".into()],
-            exclude: vec!["tests/*".into()],
-            ..default_args(root.path())
-        };
-        assert_eq!(scanned_paths(&args), ["src/lib.rs", "src/main.rs"]);
-    }
-
-    #[test]
-    fn honors_max_size_and_lockfile_flag() {
-        let root = create_fixture();
-        let args = Args {
-            max_size: Some(1024),
-            include_lockfiles: true,
-            ..default_args(root.path())
-        };
-        let paths = scanned_paths(&args);
-        assert!(paths.contains(&"Cargo.lock".to_string()));
-        assert!(!paths.contains(&"big.txt".to_string()));
-    }
-}
+mod tests;

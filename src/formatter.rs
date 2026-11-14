@@ -17,7 +17,7 @@ pub fn render(files: &[SourceFile], repository_name: &str, format: OutputFormat)
     }
 }
 
-fn render_tree(files: &[SourceFile], repository_name: &str) -> String {
+pub fn render_tree(files: &[SourceFile], repository_name: &str) -> String {
     let mut root = TreeNode::default();
     for file in files {
         let mut node = &mut root;
@@ -56,7 +56,7 @@ fn render_xml(files: &[SourceFile], repository_name: &str, tree: &str) -> String
     );
     for file in files {
         let path = escape_attribute(&file.path);
-        let _ = writeln!(output, "<file path=\"{path}\">");
+        let _ = writeln!(output, "<file path=\"{path}\" tokens=\"{}\">", file.tokens);
         push_with_trailing_newline(&mut output, &file.content);
         output.push_str("</file>\n");
     }
@@ -141,6 +141,7 @@ mod tests {
         SourceFile {
             path: path.to_string(),
             content: content.to_string(),
+            tokens: 7,
         }
     }
 
@@ -160,7 +161,7 @@ mod tests {
         let files = [source("a&b.rs", "if a < b {}")];
         let output = render(&files, "demo", OutputFormat::Xml);
         assert!(output.starts_with("<repository name=\"demo\">\n<directory_tree>\ndemo/\n"));
-        assert!(output.contains("<file path=\"a&amp;b.rs\">\nif a < b {}\n</file>\n"));
+        assert!(output.contains("<file path=\"a&amp;b.rs\" tokens=\"7\">\nif a < b {}\n</file>\n"));
         assert!(output.ends_with("</files>\n</repository>\n"));
     }
 
