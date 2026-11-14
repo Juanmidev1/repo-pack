@@ -1,5 +1,7 @@
 # repo-pack
 
+![repo-pack demo](docs/demo.gif)
+
 A Rust CLI that packs a local repository into a single text block designed for an LLM context window.
 
 Offline, fast (a few milliseconds on a typical repo) and shipped as a single binary under 3 MB.
