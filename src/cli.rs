@@ -1,6 +1,12 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+
+#[derive(Clone, Copy, Debug, PartialEq, ValueEnum)]
+pub enum OutputFormat {
+    Xml,
+    Md,
+}
 
 /// Pack a local repository into a single LLM-friendly text block
 #[derive(Parser, Debug)]
@@ -25,6 +31,14 @@ pub struct Args {
     /// Include lockfiles such as Cargo.lock or package-lock.json
     #[arg(long)]
     pub include_lockfiles: bool,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Xml)]
+    pub format: OutputFormat,
+
+    /// Write the result to this file instead of stdout
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
 }
 
 pub fn parse_size(input: &str) -> Result<u64, String> {

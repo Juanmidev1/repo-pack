@@ -113,6 +113,7 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
+    use clap::Parser;
     use tempfile::TempDir;
 
     use super::scan;
@@ -141,13 +142,7 @@ mod tests {
     }
 
     fn default_args(root: &Path) -> Args {
-        Args {
-            path: root.to_path_buf(),
-            extensions: Vec::new(),
-            exclude: Vec::new(),
-            max_size: None,
-            include_lockfiles: false,
-        }
+        Args::parse_from(["repo-pack".as_ref(), root.as_os_str()])
     }
 
     fn scanned_paths(args: &Args) -> Vec<String> {
