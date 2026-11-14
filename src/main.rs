@@ -1,4 +1,5 @@
 mod cli;
+mod clipboard;
 mod formatter;
 mod scanner;
 mod tokens;
@@ -19,6 +20,13 @@ use crate::tokens::{CONTEXT_WINDOWS, percentage_of, top_heaviest};
 const HEAVIEST_FILES_SHOWN: usize = 3;
 
 fn main() -> ExitCode {
+    #[cfg(target_os = "linux")]
+    if std::env::var_os(clipboard::DAEMON_ENV).is_some() {
+        return match clipboard::serve_from_stdin() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
     // Keep escape codes out of logs and redirected stderr
     if !io::stderr().is_terminal() {
         colored::control::set_override(false);
@@ -55,20 +63,23 @@ fn run(args: &Args) -> Result<(), Box<dyn Error>> {
         );
     }
     if !args.stats {
-        write_output(args.output.as_deref(), &packed)?;
+        write_output(args, &packed)?;
     }
     Ok(())
 }
 
-fn write_output(output_path: Option<&Path>, packed: &str) -> Result<(), Box<dyn Error>> {
-    match output_path {
-        Some(path) => fs::write(path, packed)
-            .map_err(|error| format!("cannot write {}: {error}", path.display()))?,
-        None => {
-            let mut stdout = io::stdout().lock();
-            stdout.write_all(packed.as_bytes())?;
-            stdout.flush()?;
-        }
+fn write_output(args: &Args, packed: &str) -> Result<(), Box<dyn Error>> {
+    if args.copy {
+        clipboard::copy(packed).map_err(|error| format!("cannot copy to clipboard: {error}"))?;
+        eprintln!("{}", "Copied to clipboard".green());
+    }
+    if let Some(path) = &args.output {
+        fs::write(path, packed)
+            .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+    } else if !args.copy {
+        let mut stdout = io::stdout().lock();
+        stdout.write_all(packed.as_bytes())?;
+        stdout.flush()?;
     }
     Ok(())
 }
