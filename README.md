@@ -106,3 +106,7 @@ cargo test
 ```
 
 The CI workflow runs these checks on every pull request. Pushing a `v*` tag builds the release binaries.
+
+## License
+
+[MIT](LICENSE)

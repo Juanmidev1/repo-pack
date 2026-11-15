@@ -33,7 +33,7 @@ jobs:
         run: |
           archive="repo-pack-${{ github.ref_name }}-${{ matrix.target }}"
           mkdir "$archive"
-          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" README.md "$archive/"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" README.md LICENSE "$archive/"
           tar -czf "$archive.tar.gz" "$archive"
           echo "ARCHIVE=$archive.tar.gz" >> "$GITHUB_ENV"
       - uses: softprops/action-gh-release@v2
