@@ -3,6 +3,16 @@ use std::path::PathBuf;
 use clap::{Parser, ValueEnum};
 
 #[derive(Clone, Copy, Debug, PartialEq, ValueEnum)]
+pub enum Preset {
+    /// Changes against main plus the files that import them
+    Review,
+    /// Whole repository as skeleton with the top 10 heaviest files
+    Arch,
+    /// Uncommitted changes in full, files that import them as skeleton
+    Bug,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, ValueEnum)]
 pub enum OutputFormat {
     Xml,
     Md,
@@ -52,9 +62,9 @@ pub struct Args {
     #[arg(long)]
     pub stats: bool,
 
-    /// Number of heaviest files listed in the summary
-    #[arg(long, value_name = "N", default_value_t = 3)]
-    pub top: usize,
+    /// Number of heaviest files listed in the summary [default: 3]
+    #[arg(long, value_name = "N")]
+    pub top: Option<usize>,
 
     /// Keep secrets such as API keys and passwords instead of redacting them
     #[arg(long)]
@@ -67,6 +77,39 @@ pub struct Args {
     /// Glob of files kept complete while the rest are skeletonized (repeatable, implies --skeleton)
     #[arg(long, value_name = "GLOB")]
     pub focus: Vec<String>,
+
+    /// Only pack files changed against REF (default HEAD), including uncommitted and untracked ones
+    #[arg(long, value_name = "REF", num_args = 0..=1, default_missing_value = "HEAD")]
+    pub diff: Option<String>,
+
+    /// With --diff, also pack the files that import the changed ones
+    #[arg(long, requires = "diff")]
+    pub impact: bool,
+
+    /// Workflow preset; explicit flags take precedence
+    #[arg(long, value_enum)]
+    pub preset: Option<Preset>,
+}
+
+impl Args {
+    pub fn with_preset(mut self) -> Self {
+        match self.preset {
+            Some(Preset::Review) => {
+                self.diff.get_or_insert_with(|| "main".to_string());
+                self.impact = true;
+            }
+            Some(Preset::Arch) => {
+                self.skeleton = true;
+                self.top.get_or_insert(10);
+            }
+            Some(Preset::Bug) => {
+                self.diff.get_or_insert_with(|| "HEAD".to_string());
+                self.impact = true;
+            }
+            None => {}
+        }
+        self
+    }
 }
 
 pub fn parse_size(input: &str) -> Result<u64, String> {
@@ -91,7 +134,21 @@ pub fn parse_size(input: &str) -> Result<u64, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_size;
+    use clap::Parser;
+
+    use super::{Args, parse_size};
+
+    #[test]
+    fn presets_fill_unset_flags_only() {
+        let review = Args::parse_from(["repo-pack", "--preset", "review"]).with_preset();
+        assert_eq!(review.diff.as_deref(), Some("main"));
+        assert!(review.impact);
+        let arch = Args::parse_from(["repo-pack", "--preset", "arch", "--top", "4"]).with_preset();
+        assert!(arch.skeleton);
+        assert_eq!(arch.top, Some(4));
+        let bug = Args::parse_from(["repo-pack", "--preset", "bug", "--diff=dev"]).with_preset();
+        assert_eq!(bug.diff.as_deref(), Some("dev"));
+    }
 
     #[test]
     fn parses_sizes_with_and_without_units() {
