@@ -18,11 +18,11 @@ pub enum OutputFormat {
     Md,
 }
 
-/// Pack a local repository into a single LLM-friendly text block
-#[derive(Parser, Debug)]
+/// Pack a local or remote repository into a single LLM-friendly text block
+#[derive(Parser, Debug, Clone)]
 #[command(version, about)]
 pub struct Args {
-    /// Root directory of the repository to pack
+    /// Root directory of the repository to pack, or a git URL to clone temporarily
     #[arg(default_value = ".")]
     pub path: PathBuf,
 
