@@ -1,0 +1,59 @@
+[
+  {
+    "name": "repo_map",
+    "description": "Directory tree of the repository with the estimated tokens of every file",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Repository path or git URL (default: server root)"
+        }
+      }
+    }
+  },
+  {
+    "name": "read_files",
+    "description": "Pack the given files as XML, with secrets redacted",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Repository path or git URL (default: server root)"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Paths relative to the repository root"
+        },
+        "skeleton": {
+          "type": "boolean",
+          "description": "Keep signatures and drop function bodies"
+        }
+      },
+      "required": [
+        "files"
+      ]
+    }
+  },
+  {
+    "name": "pack_impact",
+    "description": "Pack files changed against a git ref in full, plus the files that import them as skeleton",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Repository path or git URL (default: server root)"
+        },
+        "base": {
+          "type": "string",
+          "description": "Git ref to compare against (default: HEAD)"
+        }
+      }
+    }
+  }
+]
