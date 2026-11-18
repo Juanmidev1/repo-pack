@@ -781,6 +781,7 @@ dependencies = [
  "colored",
  "ignore",
  "regex",
+ "serde_json",
  "tempfile",
  "tree-sitter",
  "tree-sitter-javascript",

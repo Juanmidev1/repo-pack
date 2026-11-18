@@ -89,6 +89,10 @@ pub struct Args {
     /// Workflow preset; explicit flags take precedence
     #[arg(long, value_enum)]
     pub preset: Option<Preset>,
+
+    /// Run as an MCP server over stdio; PATH becomes the default repository for its tools
+    #[arg(long)]
+    pub mcp: bool,
 }
 
 impl Args {

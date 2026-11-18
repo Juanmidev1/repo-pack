@@ -2,6 +2,7 @@ mod cli;
 mod clipboard;
 mod formatter;
 mod git;
+mod mcp;
 mod pipeline;
 mod remote;
 mod scanner;
@@ -32,7 +33,12 @@ fn main() -> ExitCode {
         colored::control::set_override(false);
     }
     let args = Args::parse().with_preset();
-    match pipeline::run(&args) {
+    let outcome = if args.mcp {
+        mcp::serve(&args.path)
+    } else {
+        pipeline::run(&args)
+    };
+    match outcome {
         Ok(()) => ExitCode::SUCCESS,
         // Piping into tools like `head` closes stdout early, which is not a failure
         Err(error) if is_broken_pipe(error.as_ref()) => ExitCode::SUCCESS,
