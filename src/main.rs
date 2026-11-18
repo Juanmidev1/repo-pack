@@ -1,10 +1,12 @@
 mod cli;
 mod clipboard;
 mod formatter;
+mod git;
 mod pipeline;
 mod scanner;
 mod secrets;
 mod skeleton;
+mod summary;
 mod tokens;
 
 use std::error::Error;
@@ -28,7 +30,7 @@ fn main() -> ExitCode {
     if !io::stderr().is_terminal() {
         colored::control::set_override(false);
     }
-    let args = Args::parse();
+    let args = Args::parse().with_preset();
     match pipeline::run(&args) {
         Ok(()) => ExitCode::SUCCESS,
         // Piping into tools like `head` closes stdout early, which is not a failure
