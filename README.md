@@ -2,15 +2,20 @@
 
 ![repo-pack demo](docs/demo.gif)
 
-A Rust CLI that packs a local repository into a single text block designed for an LLM context window.
+A Rust CLI that packs a repository into a single text block designed for an LLM context window.
 
-Offline, fast (a few milliseconds on a typical repo) and shipped as a single binary under 3 MB.
+Offline (except when cloning a URL), fast (a few milliseconds on a typical repo) and shipped as a single binary. It can cut function bodies with tree-sitter, redact secrets, focus on what changed in git and run as an MCP server.
 
 ## Installation
 
 ```bash
 cargo install --path .
+
+# Minimal build without tree-sitter (no --skeleton/--focus)
+cargo install --path . --no-default-features
 ```
+
+The default release binary is about 8 MB because of the tree-sitter grammars; the minimal build stays under 3 MB.
 
 Prebuilt binaries for Linux, macOS and Windows are attached to each GitHub release.
 
@@ -31,6 +36,15 @@ repo-pack . | wl-copy
 
 # Dry run: show the tree and token statistics only
 repo-pack . --stats
+
+# Signatures only, except for the files you are working on
+repo-pack . --focus "src/auth/*"
+
+# Changed files against main plus the files that import them
+repo-pack . --diff main --impact
+
+# Pack a remote repository through a temporary shallow clone
+repo-pack https://github.com/user/repo --skeleton
 ```
 
 ## Token budget
@@ -72,6 +86,42 @@ fn main() {}
 
 **Markdown (`--format md`)** prints the directory tree in a `text` block, then one `## path` heading per file with a code block tagged with the detected language. The fence grows automatically when a file already contains backticks.
 
+## Skeleton mode
+
+`--skeleton` parses Rust, TypeScript/TSX, JavaScript/JSX and Python with tree-sitter and replaces every function and method body with `{ ... }` (`...` in Python, keeping docstrings). Signatures, types, structs, classes and imports stay intact. Files in other languages, or that fail to parse, are packed complete.
+
+`--focus <glob>` (repeatable) keeps the matching files complete and skeletonizes the rest. Skeleton files are marked with `mode="skeleton"` in XML and `(skeleton)` in Markdown, and the summary reports the tokens saved. The saving depends on how much of the code lives inside function bodies (about 65% on this repository).
+
+## Secrets
+
+API keys (AWS, GitHub, Slack, OpenAI/Anthropic style), private key blocks and quoted values assigned to names such as `password`, `secret` or `api_key` are replaced with `[REDACTED:<kind>]` by default. The summary lists the affected files. Use `--allow-secrets` to keep them. Detection is pattern based, so it is a safety net, not a full secret scanner.
+
+## Git context and presets
+
+`--diff [REF]` packs only the files changed against the merge base with `REF` (default `HEAD`), including uncommitted and untracked files. `--impact` adds the files that import a changed one, one level deep, detected from `use`/`mod`, `import`, `require()` and Python imports. Entry files (`mod.rs`, `index.ts`, `__init__.py`) are matched by their folder name. Write `--diff=REF` when the path comes right after it.
+
+| Preset | Equivalent |
+| :--- | :--- |
+| `--preset review` | `--diff main --impact` |
+| `--preset arch` | `--skeleton --top 10` |
+| `--preset bug` | `--diff HEAD --impact`, changed files complete and the rest as skeleton |
+
+Flags passed explicitly take precedence over the preset.
+
+## MCP server
+
+`repo-pack --mcp [PATH]` serves JSON-RPC 2.0 over stdio. `PATH` is the default repository for every tool. Tools:
+
+- `repo_map`: directory tree plus the estimated tokens of each file.
+- `read_files`: the given files as XML, optionally as skeleton.
+- `pack_impact`: files changed against a git ref in full, plus their importers as skeleton.
+
+Every tool accepts a `path` (local folder or git URL) and redacts secrets. To add it to Claude Code:
+
+```bash
+claude mcp add repo-pack -- repo-pack --mcp /path/to/repo
+```
+
 ## Excluded by default
 
 - Everything listed in `.gitignore` and `.ignore`, even if the folder is not a git repository.
@@ -92,6 +142,14 @@ fn main() {}
 | `-c, --copy` | Copy the result to the system clipboard instead of printing it |
 | `--max-tokens <n>` | Abort without writing anything above this token count |
 | `--stats` | Dry run: print the tree and statistics only |
+| `--top <n>` | Number of heaviest files listed in the summary (default `3`) |
+| `--skeleton` | Replace function bodies with placeholders |
+| `--focus <glob>` | Keep matching files complete and skeletonize the rest (repeatable) |
+| `--allow-secrets` | Do not redact detected secrets |
+| `--diff [ref]` | Only pack files changed against `ref` (default `HEAD`) |
+| `--impact` | With `--diff`, also pack the files that import the changed ones |
+| `--preset <review\|arch\|bug>` | Workflow preset |
+| `--mcp` | Run as an MCP server over stdio |
 
 ## Clipboard on Linux
 
@@ -103,6 +161,7 @@ On X11 and Wayland the copied text belongs to the process that set it and is los
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+cargo test --no-default-features
 ```
 
 The CI workflow runs these checks on every pull request. Pushing a `v*` tag builds the release binaries.

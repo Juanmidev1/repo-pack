@@ -1,6 +1,6 @@
 [package]
 name = "repo-pack"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 
@@ -9,7 +9,7 @@ arboard = { version = "3.7.0", features = ["wayland-data-control"] }
 clap = { version = "4.6.7", features = ["derive"] }
 colored = "3.1.1"
 ignore = "0.4.34"
-regex = "1.13.2"
+regex = { version = "1.13.2", default-features = false, features = ["std", "perf", "unicode-perl", "unicode-case"] }
 serde_json = "1.0.154"
 tempfile = "3.27.0"
 tree-sitter = { version = "0.27.2", optional = true }
@@ -19,7 +19,7 @@ tree-sitter-rust = { version = "0.24.2", optional = true }
 tree-sitter-typescript = { version = "0.23.2", optional = true }
 
 
-# Keep the release binary small (under 3 MB)
+# Keep the release binary small (under 3 MB with --no-default-features)
 [profile.release]
 strip = true
 lto = true

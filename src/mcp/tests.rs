@@ -45,8 +45,7 @@ fn ignores_notifications_and_reports_protocol_errors() {
     assert_eq!(unknown["error"]["code"], -32601);
 }
 
-#[test]
-fn tools_map_and_read_files() {
+fn fixture() -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();
     fs::write(
         root.path().join("lib.rs"),
@@ -54,6 +53,12 @@ fn tools_map_and_read_files() {
     )
     .unwrap();
     fs::write(root.path().join("notes.md"), "# Notes").unwrap();
+    root
+}
+
+#[test]
+fn tools_map_and_read_files() {
+    let root = fixture();
     let map = call(root.path(), "repo_map", json!({}));
     assert!(
         map["content"][0]["text"]
@@ -61,6 +66,18 @@ fn tools_map_and_read_files() {
             .unwrap()
             .contains("lib.rs - ")
     );
+    let read = call(root.path(), "read_files", json!({ "files": ["lib.rs"] }));
+    let text = read["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("a + 1"));
+    assert!(!text.contains("notes.md\""));
+    let missing = call(root.path(), "read_files", json!({ "files": ["nope.rs"] }));
+    assert_eq!(missing["isError"], true);
+}
+
+#[cfg(feature = "skeleton")]
+#[test]
+fn reads_files_as_skeleton() {
+    let root = fixture();
     let read = call(
         root.path(),
         "read_files",
@@ -68,7 +85,4 @@ fn tools_map_and_read_files() {
     );
     let text = read["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("mode=\"skeleton\">\npub fn add(a: i32) -> i32 { ... }"));
-    assert!(!text.contains("notes.md\""));
-    let missing = call(root.path(), "read_files", json!({ "files": ["nope.rs"] }));
-    assert_eq!(missing["isError"], true);
 }
