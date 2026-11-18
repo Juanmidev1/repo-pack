@@ -8,13 +8,15 @@ use colored::{ColoredString, Colorize};
 use crate::cli::Args;
 use crate::scanner::{self, SourceFile};
 use crate::tokens::{self, CONTEXT_WINDOWS, percentage_of, top_heaviest};
-use crate::{clipboard, formatter};
+use crate::{clipboard, formatter, secrets};
 
 pub struct Package {
     pub files: Vec<SourceFile>,
     pub name: String,
     pub text: String,
     pub tokens: usize,
+    /// Files with redacted secrets and how many were replaced in each
+    pub redactions: Vec<(String, usize)>,
 }
 
 // Side-effect free so callers that own stdout (like the MCP server) can reuse it
@@ -22,7 +24,12 @@ pub fn pack(args: &Args) -> Result<Package, Box<dyn Error>> {
     if !args.path.is_dir() {
         return Err(format!("{} is not a directory", args.path.display()).into());
     }
-    let files = scanner::scan(args)?;
+    let mut files = scanner::scan(args)?;
+    let redactions = if args.allow_secrets {
+        Vec::new()
+    } else {
+        redact_secrets(&mut files)
+    };
     let name = repository_name(&args.path);
     let text = formatter::render(&files, &name, args.format);
     let tokens = tokens::estimate_tokens(&text);
@@ -31,7 +38,21 @@ pub fn pack(args: &Args) -> Result<Package, Box<dyn Error>> {
         name,
         text,
         tokens,
+        redactions,
     })
+}
+
+fn redact_secrets(files: &mut [SourceFile]) -> Vec<(String, usize)> {
+    let mut redactions = Vec::new();
+    for file in files {
+        let (content, count) = secrets::redact(&file.content);
+        if count > 0 {
+            file.tokens = tokens::estimate_tokens(&content);
+            file.content = content;
+            redactions.push((file.path.clone(), count));
+        }
+    }
+    redactions
 }
 
 pub fn run(args: &Args) -> Result<(), Box<dyn Error>> {
@@ -40,6 +61,7 @@ pub fn run(args: &Args) -> Result<(), Box<dyn Error>> {
         eprint!("{}", formatter::render_tree(&package.files, &package.name));
     }
     print_summary(&package, args.top);
+    print_redactions(&package.redactions);
     if let Some(limit) = args.max_tokens
         && package.tokens > limit
     {
@@ -102,6 +124,20 @@ fn print_heaviest(files: &[SourceFile], total_tokens: usize, top: usize) {
             file.path.cyan(),
             file.tokens
         );
+    }
+}
+
+fn print_redactions(redactions: &[(String, usize)]) {
+    if redactions.is_empty() {
+        return;
+    }
+    let total: usize = redactions.iter().map(|(_, count)| count).sum();
+    eprintln!(
+        "{} redacted {total} secret(s), use --allow-secrets to keep them:",
+        "warning:".yellow().bold()
+    );
+    for (path, count) in redactions {
+        eprintln!("    {} ({count})", path.cyan());
     }
 }
 

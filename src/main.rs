@@ -3,6 +3,7 @@ mod clipboard;
 mod formatter;
 mod pipeline;
 mod scanner;
+mod secrets;
 mod tokens;
 
 use std::error::Error;

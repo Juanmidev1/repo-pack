@@ -55,6 +55,10 @@ pub struct Args {
     /// Number of heaviest files listed in the summary
     #[arg(long, value_name = "N", default_value_t = 3)]
     pub top: usize,
+
+    /// Keep secrets such as API keys and passwords instead of redacting them
+    #[arg(long)]
+    pub allow_secrets: bool,
 }
 
 pub fn parse_size(input: &str) -> Result<u64, String> {
