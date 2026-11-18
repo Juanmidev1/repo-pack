@@ -9,7 +9,7 @@ use colored::Colorize;
 use crate::cli::{Args, Preset};
 use crate::scanner::{self, SourceFile};
 use crate::tokens;
-use crate::{clipboard, formatter, git, secrets, skeleton, summary};
+use crate::{clipboard, formatter, git, remote, secrets, skeleton, summary};
 
 const DEFAULT_TOP: usize = 3;
 
@@ -22,8 +22,23 @@ pub struct Package {
     pub redactions: Vec<(String, usize)>,
 }
 
-// Side-effect free so callers that own stdout (like the MCP server) can reuse it
+// Never writes to stdout, so callers that own it (like the MCP server) can reuse it
 pub fn pack(args: &Args) -> Result<Package, Box<dyn Error>> {
+    let Some(url) = remote::url(&args.path) else {
+        return pack_local(args, repository_name(&args.path));
+    };
+    if args.diff.is_some() {
+        return Err("--diff needs a local repository, not a URL".into());
+    }
+    let checkout = remote::clone(url)?;
+    let local_args = Args {
+        path: checkout.path().to_path_buf(),
+        ..args.clone()
+    };
+    pack_local(&local_args, remote::repository_name(url))
+}
+
+fn pack_local(args: &Args, name: String) -> Result<Package, Box<dyn Error>> {
     if !args.path.is_dir() {
         return Err(format!("{} is not a directory", args.path.display()).into());
     }
@@ -36,7 +51,6 @@ pub fn pack(args: &Args) -> Result<Package, Box<dyn Error>> {
     } else {
         redact_secrets(&mut files)
     };
-    let name = repository_name(&args.path);
     let text = formatter::render(&files, &name, args.format);
     let tokens = tokens::estimate_tokens(&text);
     Ok(Package {

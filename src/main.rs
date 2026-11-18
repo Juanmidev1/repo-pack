@@ -3,6 +3,7 @@ mod clipboard;
 mod formatter;
 mod git;
 mod pipeline;
+mod remote;
 mod scanner;
 mod secrets;
 mod skeleton;
