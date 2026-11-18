@@ -8,7 +8,7 @@ use colored::{ColoredString, Colorize};
 use crate::cli::Args;
 use crate::scanner::{self, SourceFile};
 use crate::tokens::{self, CONTEXT_WINDOWS, percentage_of, top_heaviest};
-use crate::{clipboard, formatter, secrets};
+use crate::{clipboard, formatter, secrets, skeleton};
 
 pub struct Package {
     pub files: Vec<SourceFile>,
@@ -25,6 +25,8 @@ pub fn pack(args: &Args) -> Result<Package, Box<dyn Error>> {
         return Err(format!("{} is not a directory", args.path.display()).into());
     }
     let mut files = scanner::scan(args)?;
+    // Skeleton first so redaction warnings only cover code that is actually emitted
+    skeleton::apply(&mut files, &args.path, args.skeleton, &args.focus)?;
     let redactions = if args.allow_secrets {
         Vec::new()
     } else {
@@ -108,7 +110,23 @@ fn print_summary(package: &Package, top: usize) {
     eprintln!("  Lines:   {total_lines}");
     eprintln!("  Tokens:  {}", total_tokens.to_string().bold());
     eprintln!("  Context: {}", window_usage.join(" | "));
+    print_savings(files);
     print_heaviest(files, total_tokens, top);
+}
+
+fn print_savings(files: &[SourceFile]) {
+    let skeletonized = files.iter().filter(|file| file.skeleton).count();
+    if skeletonized == 0 {
+        return;
+    }
+    let original: usize = files.iter().map(|file| file.original_tokens).sum();
+    let current: usize = files.iter().map(|file| file.tokens).sum();
+    let saved = original.saturating_sub(current);
+    eprintln!(
+        "  Saved:   {} tokens ({:.1}%) in {skeletonized} skeleton file(s)",
+        saved.to_string().green().bold(),
+        percentage_of(saved, original)
+    );
 }
 
 fn print_heaviest(files: &[SourceFile], total_tokens: usize, top: usize) {

@@ -21,10 +21,14 @@ const LOCKFILES: &[&str] = &[
 // Same heuristic as git: a NUL byte near the start means the file is binary
 const BINARY_SNIFF_BYTES: usize = 8000;
 
+#[derive(Default)]
 pub struct SourceFile {
     pub path: String,
     pub content: String,
     pub tokens: usize,
+    /// Tokens before any transformation, used to report what skeleton mode saved
+    pub original_tokens: usize,
+    pub skeleton: bool,
 }
 
 pub fn scan(args: &Args) -> Result<Vec<SourceFile>, ignore::Error> {
@@ -124,10 +128,13 @@ fn read_text_file(root: &Path, path: &Path) -> Option<SourceFile> {
     }
     let content = String::from_utf8(bytes).ok()?;
     let relative_path = path.strip_prefix(root).unwrap_or(path);
+    let tokens = estimate_tokens(&content);
     Some(SourceFile {
         path: relative_path.to_string_lossy().replace('\\', "/"),
-        tokens: estimate_tokens(&content),
+        tokens,
+        original_tokens: tokens,
         content,
+        skeleton: false,
     })
 }
 

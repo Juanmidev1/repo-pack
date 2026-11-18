@@ -56,7 +56,16 @@ fn render_xml(files: &[SourceFile], repository_name: &str, tree: &str) -> String
     );
     for file in files {
         let path = escape_attribute(&file.path);
-        let _ = writeln!(output, "<file path=\"{path}\" tokens=\"{}\">", file.tokens);
+        let mode = if file.skeleton {
+            " mode=\"skeleton\""
+        } else {
+            ""
+        };
+        let _ = writeln!(
+            output,
+            "<file path=\"{path}\" tokens=\"{}\"{mode}>",
+            file.tokens
+        );
         push_with_trailing_newline(&mut output, &file.content);
         output.push_str("</file>\n");
     }
@@ -68,7 +77,8 @@ fn render_markdown(files: &[SourceFile], repository_name: &str, tree: &str) -> S
     let mut output = format!("# {repository_name}\n\n## Directory tree\n\n");
     push_code_block(&mut output, "text", tree);
     for file in files {
-        let _ = write!(output, "\n## {}\n\n", file.path);
+        let mode = if file.skeleton { " (skeleton)" } else { "" };
+        let _ = write!(output, "\n## {}{mode}\n\n", file.path);
         push_code_block(&mut output, detect_language(&file.path), &file.content);
     }
     output
@@ -142,6 +152,7 @@ mod tests {
             path: path.to_string(),
             content: content.to_string(),
             tokens: 7,
+            ..Default::default()
         }
     }
 
@@ -163,6 +174,16 @@ mod tests {
         assert!(output.starts_with("<repository name=\"demo\">\n<directory_tree>\ndemo/\n"));
         assert!(output.contains("<file path=\"a&amp;b.rs\" tokens=\"7\">\nif a < b {}\n</file>\n"));
         assert!(output.ends_with("</files>\n</repository>\n"));
+    }
+
+    #[test]
+    fn marks_skeleton_files() {
+        let mut file = source("lib.rs", "fn a() { ... }");
+        file.skeleton = true;
+        let xml = render(std::slice::from_ref(&file), "demo", OutputFormat::Xml);
+        assert!(xml.contains("<file path=\"lib.rs\" tokens=\"7\" mode=\"skeleton\">"));
+        let markdown = render(&[file], "demo", OutputFormat::Md);
+        assert!(markdown.contains("## lib.rs (skeleton)\n"));
     }
 
     #[test]
