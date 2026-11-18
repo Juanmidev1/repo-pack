@@ -59,6 +59,14 @@ pub struct Args {
     /// Keep secrets such as API keys and passwords instead of redacting them
     #[arg(long)]
     pub allow_secrets: bool,
+
+    /// Replace function bodies with placeholders, keeping signatures, types and imports
+    #[arg(long)]
+    pub skeleton: bool,
+
+    /// Glob of files kept complete while the rest are skeletonized (repeatable, implies --skeleton)
+    #[arg(long, value_name = "GLOB")]
+    pub focus: Vec<String>,
 }
 
 pub fn parse_size(input: &str) -> Result<u64, String> {

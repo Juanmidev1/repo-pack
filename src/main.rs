@@ -4,6 +4,7 @@ mod formatter;
 mod pipeline;
 mod scanner;
 mod secrets;
+mod skeleton;
 mod tokens;
 
 use std::error::Error;

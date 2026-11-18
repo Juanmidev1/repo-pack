@@ -50,8 +50,8 @@ mod tests {
             .into_iter()
             .map(|(path, tokens)| SourceFile {
                 path: path.into(),
-                content: String::new(),
                 tokens,
+                ..Default::default()
             })
             .collect();
         let ranked: Vec<&str> = top_heaviest(&files, 3)
