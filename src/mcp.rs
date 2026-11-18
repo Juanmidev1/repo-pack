@@ -12,15 +12,28 @@ const PROTOCOL_VERSION: &str = "2025-06-18";
 
 /// Newline-delimited JSON-RPC 2.0 over stdio; stdout carries protocol messages only
 pub fn serve(default_root: &Path) -> Result<(), Box<dyn Error>> {
-    let mut stdout = io::stdout().lock();
-    for line in io::stdin().lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        if let Some(response) = handle(&line, default_root) {
-            writeln!(stdout, "{response}")?;
-            stdout.flush()?;
+    serve_streams(io::stdin().lock(), io::stdout().lock(), default_root)
+}
+
+fn serve_streams(
+    input: impl BufRead,
+    mut output: impl Write,
+    default_root: &Path,
+) -> Result<(), Box<dyn Error>> {
+    for line in input.split(b'\n') {
+        // A single malformed message must not take the whole server down
+        let response = match String::from_utf8(line?) {
+            Ok(line) if line.trim().is_empty() => continue,
+            Ok(line) => handle(&line, default_root),
+            Err(_) => Some(error_response(
+                Value::Null,
+                -32700,
+                "message is not valid UTF-8",
+            )),
+        };
+        if let Some(response) = response {
+            writeln!(output, "{response}")?;
+            output.flush()?;
         }
     }
     Ok(())

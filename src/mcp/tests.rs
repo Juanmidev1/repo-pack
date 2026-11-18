@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use super::handle;
+use super::{handle, serve_streams};
 
 fn request(root: &Path, message: Value) -> Value {
     handle(&message.to_string(), root).expect("requests with an id get a response")
@@ -43,6 +43,20 @@ fn ignores_notifications_and_reports_protocol_errors() {
     assert_eq!(handle("{not json", root).unwrap()["error"]["code"], -32700);
     let unknown = request(root, json!({ "jsonrpc": "2.0", "id": 3, "method": "nope" }));
     assert_eq!(unknown["error"]["code"], -32601);
+}
+
+#[test]
+fn keeps_serving_after_invalid_utf8() {
+    let input = b"\xff\xfe\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n";
+    let mut output = Vec::new();
+    serve_streams(&input[..], &mut output, Path::new(".")).unwrap();
+    let lines: Vec<Value> = String::from_utf8(output)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines[0]["error"]["code"], -32700);
+    assert_eq!(lines[1]["id"], 1);
 }
 
 fn fixture() -> tempfile::TempDir {

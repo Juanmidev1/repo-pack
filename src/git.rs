@@ -11,7 +11,7 @@ use crate::scanner::SourceFile;
 // Covers Rust `use`/`mod`, ES `import`/`export ... from`, `require()` and Python imports
 static IMPORT_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
-        r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:use|mod)\s+([^;]+);",
+        r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:use\s+([^;]+);|mod\s+(\w+))",
         r#"(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]"#,
         r#"(?:import|require)\s*\(?\s*['"]([^'"]+)['"]"#,
         r"(?m)^\s*from\s+([\w.]+)\s+import\s+([\w., ()]+)",
@@ -26,11 +26,22 @@ const DIRECTORY_ENTRY_STEMS: &[&str] = &["mod", "index", "__init__"];
 
 /// Files changed against `base` (via its merge base), including uncommitted and untracked ones
 pub fn changed_files(root: &Path, base: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    // A ref like `--output=file` would otherwise be parsed by git as an option
+    if base.starts_with('-') {
+        return Err(format!("invalid git ref: {base}").into());
+    }
     // Outside a repository `git diff` falls back to --no-index and prints its whole usage
     run_git(root, &["rev-parse", "--is-inside-work-tree"])
         .map_err(|_| format!("{} is not inside a git repository", root.display()))?;
     let mut changed: BTreeSet<String> = BTreeSet::new();
-    let diff = ["diff", "--name-only", "--relative", "--merge-base", base];
+    let diff = [
+        "diff",
+        "--name-only",
+        "--relative",
+        "--merge-base",
+        "--end-of-options",
+        base,
+    ];
     changed.extend(run_git(root, &diff)?);
     changed.extend(run_git(
         root,
@@ -43,6 +54,8 @@ fn run_git(root: &Path, arguments: &[&str]) -> Result<Vec<String>, Box<dyn Error
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
+        // Quoted paths like "\303\261.rs" would never match the scanned ones
+        .args(["-c", "core.quotePath=false"])
         .args(arguments)
         .output()
         .map_err(|error| format!("cannot run git: {error}"))?;
