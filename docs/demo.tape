@@ -4,7 +4,7 @@ Output docs/demo.gif
 Set Shell "bash"
 Set FontSize 16
 Set Width 1100
-Set Height 620
+Set Height 820
 Set Padding 20
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 45ms
@@ -19,12 +19,12 @@ Sleep 400ms
 Enter
 Sleep 4s
 
-Type "clear && repo-pack . -e rs --max-tokens 100000 --copy"
-Sleep 400ms
-Enter
-Sleep 3s
-
-Type "clear && repo-pack . -e toml 2>/dev/null | head -20"
+Type "clear && repo-pack . --skeleton --stats"
 Sleep 400ms
 Enter
 Sleep 4s
+
+Type "clear && repo-pack . --preset arch > /dev/null"
+Sleep 400ms
+Enter
+Sleep 5s

@@ -90,7 +90,7 @@ fn main() {}
 
 `--skeleton` parses Rust, TypeScript/TSX, JavaScript/JSX and Python with tree-sitter and replaces every function and method body with `{ ... }` (`...` in Python, keeping docstrings). Signatures, types, structs, classes and imports stay intact. Files in other languages, or that fail to parse, are packed complete.
 
-`--focus <glob>` (repeatable) keeps the matching files complete and skeletonizes the rest. Skeleton files are marked with `mode="skeleton"` in XML and `(skeleton)` in Markdown, and the summary reports the tokens saved. The saving depends on how much of the code lives inside function bodies (about 65% on this repository).
+`--focus <glob>` (repeatable) keeps the matching files complete and skeletonizes the rest. Skeleton files are marked with `mode="skeleton"` in XML and `(skeleton)` in Markdown, and the summary reports the tokens saved. The saving depends on how much of the code lives inside function bodies (about 57% on this whole repository and 68% counting only its Rust files).
 
 ## Secrets
 
