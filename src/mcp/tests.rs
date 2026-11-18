@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use super::handle;
+use super::{handle, serve_streams};
 
 fn request(root: &Path, message: Value) -> Value {
     handle(&message.to_string(), root).expect("requests with an id get a response")
@@ -46,7 +46,20 @@ fn ignores_notifications_and_reports_protocol_errors() {
 }
 
 #[test]
-fn tools_map_and_read_files() {
+fn keeps_serving_after_invalid_utf8() {
+    let input = b"\xff\xfe\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n";
+    let mut output = Vec::new();
+    serve_streams(&input[..], &mut output, Path::new(".")).unwrap();
+    let lines: Vec<Value> = String::from_utf8(output)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines[0]["error"]["code"], -32700);
+    assert_eq!(lines[1]["id"], 1);
+}
+
+fn fixture() -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();
     fs::write(
         root.path().join("lib.rs"),
@@ -54,6 +67,12 @@ fn tools_map_and_read_files() {
     )
     .unwrap();
     fs::write(root.path().join("notes.md"), "# Notes").unwrap();
+    root
+}
+
+#[test]
+fn tools_map_and_read_files() {
+    let root = fixture();
     let map = call(root.path(), "repo_map", json!({}));
     assert!(
         map["content"][0]["text"]
@@ -61,6 +80,18 @@ fn tools_map_and_read_files() {
             .unwrap()
             .contains("lib.rs - ")
     );
+    let read = call(root.path(), "read_files", json!({ "files": ["lib.rs"] }));
+    let text = read["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("a + 1"));
+    assert!(!text.contains("notes.md\""));
+    let missing = call(root.path(), "read_files", json!({ "files": ["nope.rs"] }));
+    assert_eq!(missing["isError"], true);
+}
+
+#[cfg(feature = "skeleton")]
+#[test]
+fn reads_files_as_skeleton() {
+    let root = fixture();
     let read = call(
         root.path(),
         "read_files",
@@ -68,7 +99,4 @@ fn tools_map_and_read_files() {
     );
     let text = read["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("mode=\"skeleton\">\npub fn add(a: i32) -> i32 { ... }"));
-    assert!(!text.contains("notes.md\""));
-    let missing = call(root.path(), "read_files", json!({ "files": ["nope.rs"] }));
-    assert_eq!(missing["isError"], true);
 }

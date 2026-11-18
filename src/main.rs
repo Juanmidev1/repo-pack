@@ -28,10 +28,9 @@ fn main() -> ExitCode {
             Err(_) => ExitCode::FAILURE,
         };
     }
-    // Keep escape codes out of logs and redirected stderr
-    if !io::stderr().is_terminal() {
-        colored::control::set_override(false);
-    }
+    // All colored output goes to stderr, but `colored` only checks stdout, so piping the
+    // package would drop colors from the summary
+    colored::control::set_override(io::stderr().is_terminal());
     let args = Args::parse().with_preset();
     let outcome = if args.mcp {
         mcp::serve(&args.path)

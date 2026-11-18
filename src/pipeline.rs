@@ -77,9 +77,22 @@ fn narrow_to_git_scope(
     }
     files.retain(|file| scope.contains(&file.path));
     if args.preset == Some(Preset::Bug) && args.focus.is_empty() {
-        return Ok(changed.iter().map(|path| format!("/{path}")).collect());
+        return Ok(changed
+            .iter()
+            .map(|path| format!("/{}", escape_glob(path)))
+            .collect());
     }
     Ok(args.focus.clone())
+}
+
+// Focus globs are built from real paths, so glob syntax inside them must match literally
+fn escape_glob(path: &str) -> String {
+    path.chars()
+        .map(|character| match character {
+            '*' | '?' | '[' | ']' | '{' | '}' => format!("[{character}]"),
+            _ => character.to_string(),
+        })
+        .collect()
 }
 
 fn redact_secrets(files: &mut [SourceFile]) -> Vec<(String, usize)> {
@@ -139,4 +152,22 @@ fn repository_name(path: &Path) -> String {
                 .map(|name| name.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| "repository".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use ignore::overrides::OverrideBuilder;
+
+    use super::escape_glob;
+
+    #[test]
+    fn escaped_paths_only_match_themselves() {
+        let mut builder = OverrideBuilder::new("/repo");
+        builder
+            .add(&format!("/{}", escape_glob("src/[id]/*.ts")))
+            .unwrap();
+        let matcher = builder.build().unwrap();
+        assert!(matcher.matched("src/[id]/*.ts", false).is_whitelist());
+        assert!(!matcher.matched("src/i/page.ts", false).is_whitelist());
+    }
 }

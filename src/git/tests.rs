@@ -27,6 +27,10 @@ fn finds_importers_across_languages() {
     let files = [
         source("src/main.rs", "use crate::scanner::{self, SourceFile};"),
         source("src/other.rs", "use crate::modding;"),
+        source(
+            "src/inline.rs",
+            "mod tests {\n    let scanner = 1;\n    run();\n}",
+        ),
         source("web/app.tsx", "import { get } from './api';"),
         source("web/legacy.js", "const api = require('./api');"),
         source("tools/run.py", "from pkg.scanner import scan"),
@@ -66,10 +70,21 @@ fn lists_modified_and_untracked_files() {
     git(path, &["commit", "-qm", "init"]);
     fs::write(path.join("edited.rs"), "fn b() { 1; }").unwrap();
     fs::write(path.join("new.rs"), "fn c() {}").unwrap();
+    fs::write(path.join("ñandú.rs"), "fn d() {}").unwrap();
     assert_eq!(
         changed_files(path, "HEAD").unwrap(),
-        ["edited.rs", "new.rs"]
+        ["edited.rs", "new.rs", "ñandú.rs"]
     );
+}
+
+#[test]
+fn rejects_refs_that_look_like_options() {
+    let root = tempfile::tempdir().unwrap();
+    git(root.path(), &["init", "-q"]);
+    let target = root.path().join("written");
+    let base = format!("--output={}", target.display());
+    assert!(changed_files(root.path(), &base).is_err());
+    assert!(!target.exists());
 }
 
 #[test]
