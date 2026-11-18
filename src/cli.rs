@@ -51,6 +51,10 @@ pub struct Args {
     /// Dry run: print the tree and token statistics without producing output
     #[arg(long)]
     pub stats: bool,
+
+    /// Number of heaviest files listed in the summary
+    #[arg(long, value_name = "N", default_value_t = 3)]
+    pub top: usize,
 }
 
 pub fn parse_size(input: &str) -> Result<u64, String> {
